@@ -24,7 +24,7 @@ def fetch_1min(code, date):
         print(f"レスポンス: {r.text[:200]}")  # 最初の200文字
         r.raise_for_status()
         j = r.json()
-        rows = j.get("bars_minute", [])
+        rows = j.get("data", []) or j.get("bars_minute", [])
         all_rows.extend(rows)
         pk = j.get("pagination_key")
         if not pk:
