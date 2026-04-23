@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公募銘柄 1分足チャート</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: #222730;
+    --accent: #00d4aa;
+    --accent2: #ff6b35;
+    --up: #00d4aa;
+    --down: #ff4560;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans JP', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── ヘッダー ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+
+  .logo span { color: var(--muted); font-weight: 400; }
+
+  .header-sep { width: 1px; height: 28px; background: var(--border); }
+
+  /* ── 入力エリア ── */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  input, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,212,170,0.1);
+  }
+
+  input[type="text"] { width: 120px; }
+  input[type="date"] { width: 140px; color-scheme: dark; }
+
+  .btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { background: #00f0c0; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { background: var(--muted); cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+  /* ── トークン入力エリア ── */
+  .token-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .token-bar input {
+    width: 340px;
+    font-size: 11px;
+  }
+
+  .token-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+
+  .token-status.ok { background: rgba(0,212,170,0.15); color: var(--accent); }
+  .token-status.ng { background: rgba(255,69,96,0.15); color: var(--down); }
+
+  /* ── 銘柄リスト ── */
+  .stock-list {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .stock-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px 4px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .stock-chip:hover, .stock-chip.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .stock-chip .remove {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+  }
+
+  .stock-chip .remove:hover { color: var(--down); }
+
+  /* ── メインレイアウト ── */
+  .main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── サイドパネル ── */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 16px;
+    border-bottom: 1px solid rgba(34,39,48,0.5);
+    font-size: 12px;
+  }
+
+  .stat-label { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+  .stat-value { font-family: var(--mono); font-weight: 600; }
+  .stat-value.up { color: var(--up); }
+  .stat-value.down { color: var(--down); }
+
+  .candle-table {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .candle-row {
+    display: grid;
+    grid-template-columns: 48px 1fr 1fr;
+    gap: 2px;
+    padding: 3px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: background 0.1s;
+  }
+
+  .candle-row:hover { background: var(--surface2); color: var(--text); }
+  .candle-row.up-row { border-left: 2px solid var(--up); }
+  .candle-row.down-row { border-left: 2px solid var(--down); }
+
+  /* ── チャートエリア ── */
+  .chart-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .chart-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .ticker-label {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .price-display {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .ohlc-display {
+    display: flex;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .ohlc-display span b { font-weight: 600; }
+  .ohlc-display .o b { color: var(--text); }
+  .ohlc-display .h b { color: var(--up); }
+  .ohlc-display .l b { color: var(--down); }
+  .ohlc-display .c b { color: var(--accent2); }
+  .ohlc-display .v b { color: var(--muted); }
+
+  #chart { flex: 1; min-height: 0; }
+
+  /* ── 状態表示 ── */
+  .status-area {
+    padding: 12px 24px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .status-dot.loading {
+    background: var(--accent);
+    animation: pulse 1s infinite;
+  }
+
+  .status-dot.ok { background: var(--up); }
+  .status-dot.error { background: var(--down); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── 空状態 ── */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+  }
+
+  .empty-state .big { font-size: 48px; opacity: 0.2; }
+  .empty-state p { font-family: var(--mono); font-size: 12px; line-height: 1.8; text-align: center; }
+
+  /* ── スクロールバー ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- トークン入力 -->
+<div class="token-bar">
+  <label>REFRESH TOKEN</label>
+  <input type="text" id="tokenInput" placeholder="J-Quants Refresh Token を貼り付け" style="width:340px">
+  <button class="btn" onclick="setToken()">セット</button>
+  <div class="token-status ng" id="tokenStatus">未設定</div>
+  <span style="font-size:11px; color:var(--muted); margin-left:8px;">
+    ※ <a href="https://jpx-jquants.com/" target="_blank" style="color:var(--accent)">jpx-jquants.com</a> でトークン取得・再発行
+  </span>
+</div>
+
+<!-- 銘柄・日付入力 -->
+<header>
+  <div class="logo">公募銘柄<span> / </span>1分足</div>
+  <div class="header-sep"></div>
+  <div class="controls">
+    <label>銘柄コード</label>
+    <input type="text" id="codeInput" placeholder="例: 7203" maxlength="5">
+    <label>受渡日</label>
+    <input type="date" id="dateInput">
+    <button class="btn" onclick="addStock()">＋ 追加</button>
+    <button class="btn btn-secondary" onclick="clearAll()">クリア</button>
+  </div>
+</header>
+
+<!-- 追加済み銘柄チップ -->
+<div class="stock-list" id="stockList">
+  <span style="font-size:11px; color:var(--muted); font-family:var(--mono);">銘柄を追加するとここに表示されます</span>
+</div>
+
+<!-- メインコンテンツ -->
+<div class="main">
+  <!-- サイドバー -->
+  <div class="sidebar">
+    <div class="sidebar-title">SUMMARY</div>
+    <div id="statsPanel">
+      <div style="padding:20px 16px; color:var(--muted); font-size:11px; font-family:var(--mono); line-height:1.8;">
+        銘柄を選択すると<br>統計が表示されます
+      </div>
+    </div>
+    <div class="sidebar-title" style="margin-top:8px;">1MIN DATA</div>
+    <div class="candle-table" id="candleTable"></div>
+  </div>
+
+  <!-- チャートエリア -->
+  <div class="chart-area">
+    <div class="chart-header" id="chartHeader">
+      <span style="font-family:var(--mono); font-size:13px; color:var(--muted);">銘柄を追加して「取得」してください</span>
+    </div>
+    <div id="chart">
+      <div class="empty-state">
+        <div class="big">📊</div>
+        <p>① Refresh Tokenをセット<br>② 銘柄コード・受渡日を入力して追加<br>③ チップをクリックして取得</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ステータスバー -->
+<div class="status-area">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">準備完了</span>
+</div>
+
+<script>
+// ── 状態管理 ──
+let idToken = null;
+let stocks = []; // [{code, date, label}]
+let chartInstance = null;
+let candleSeries = null;
+let currentStock = null;
+
+// ── 初期値：今日の日付をセット ──
+document.getElementById('dateInput').value = new Date().toISOString().slice(0, 10);
+
+// ── トークン管理 ──
+async function setToken() {
+  const refreshToken = document.getElementById('tokenInput').value.trim();
+  if (!refreshToken) { alert('Refresh Tokenを入力してください'); return; }
+
+  setStatus('loading', 'IDトークン取得中...');
+  try {
+    const res = await fetch(
+      `https://api.jquants.com/v1/token/auth_refresh?refreshtoken=${encodeURIComponent(refreshToken)}`,
+      { method: 'POST' }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    idToken = data.idToken;
+    document.getElementById('tokenStatus').textContent = '✓ 認証済み';
+    document.getElementById('tokenStatus').className = 'token-status ok';
+    setStatus('ok', 'トークン取得完了 — 銘柄を追加してください');
+  } catch (e) {
+    idToken = null;
+    document.getElementById('tokenStatus').textContent = '✗ エラー';
+    document.getElementById('tokenStatus').className = 'token-status ng';
+    setStatus('error', 'トークン取得失敗: ' + e.message);
+  }
+}
+
+// ── 銘柄追加 ──
+function addStock() {
+  const code = document.getElementById('codeInput').value.trim();
+  const date = document.getElementById('dateInput').value;
+  if (!code) { alert('銘柄コードを入力してください'); return; }
+  if (!date) { alert('受渡日を入力してください'); return; }
+
+  const key = `${code}_${date}`;
+  if (stocks.find(s => s.key === key)) {
+    alert('すでに追加済みです');
+    return;
+  }
+
+  stocks.push({ code, date, key, label: `${code} (${date})` });
+  renderChips();
+  document.getElementById('codeInput').value = '';
+
+  // 追加したら自動取得
+  fetchStock(code, date, key);
+}
+
+// ── チップ描画 ──
+function renderChips() {
+  const el = document.getElementById('stockList');
+  if (stocks.length === 0) {
+    el.innerHTML = '<span style="font-size:11px; color:var(--muted); font-family:var(--mono);">銘柄を追加するとここに表示されます</span>';
+    return;
+  }
+
+  el.innerHTML = stocks.map(s => `
+    <div class="stock-chip ${currentStock && currentStock.key === s.key ? 'active' : ''}"
+         onclick="switchStock('${s.key}')">
+      ${s.label}
+      <span class="remove" onclick="event.stopPropagation(); removeStock('${s.key}')">×</span>
+    </div>
+  `).join('');
+}
+
+// ── 銘柄削除 ──
+function removeStock(key) {
+  stocks = stocks.filter(s => s.key !== key);
+  if (currentStock && currentStock.key === key) {
+    currentStock = null;
+    clearChart();
+  }
+  renderChips();
+}
+
+// ── クリア ──
+function clearAll() {
+  stocks = [];
+  currentStock = null;
+  renderChips();
+  clearChart();
+}
+
+// ── チャートクリア ──
+function clearChart() {
+  document.getElementById('chart').innerHTML =
+    '<div class="empty-state"><div class="big">📊</div><p>銘柄を選択してください</p></div>';
+  document.getElementById('chartHeader').innerHTML =
+    '<span style="font-family:var(--mono); font-size:13px; color:var(--muted);">銘柄を選択してください</span>';
+  document.getElementById('statsPanel').innerHTML =
+    '<div style="padding:20px 16px; color:var(--muted); font-size:11px; font-family:var(--mono); line-height:1.8;">銘柄を選択すると<br>統計が表示されます</div>';
+  document.getElementById('candleTable').innerHTML = '';
+  chartInstance = null;
+  candleSeries = null;
+}
+
+// ── 銘柄切り替え ──
+function switchStock(key) {
+  const s = stocks.find(x => x.key === key);
+  if (!s) return;
+  if (s.data) {
+    currentStock = s;
+    renderChips();
+    renderChart(s);
+  } else {
+    fetchStock(s.code, s.date, s.key);
+  }
+}
+
+// ── データ取得 ──
+async function fetchStock(code, date, key) {
+  if (!idToken) {
+    alert('先にRefresh Tokenをセットしてください');
+    return;
+  }
+
+  setStatus('loading', `${code} (${date}) 取得中...`);
+
+  try {
+    const res = await fetch(
+      `https://api.jquants.com/v1/prices/prices_am?code=${code}&date=${date}`,
+      { headers: { Authorization: `Bearer ${idToken}` } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    let rows = json.prices_am || [];
+
+    // 9:00〜11:30 フィルタ
+    rows = rows.filter(r => {
+      const t = r.DateTime ? r.DateTime.slice(11, 16) : '';
+      return t >= '09:00' && t <= '11:30';
+    });
+
+    if (rows.length === 0) {
+      setStatus('error', `${code}: データなし（受渡日が取引日でないか、データ未公開の可能性）`);
+      return;
+    }
+
+    // LightweightCharts用に変換
+    const candles = rows.map(r => ({
+      time: Math.floor(new Date(r.DateTime.replace(' ', 'T') + '+09:00').getTime() / 1000),
+      open: r.Open,
+      high: r.High,
+      low: r.Low,
+      close: r.Close,
+      volume: r.Volume,
+      rawTime: r.DateTime ? r.DateTime.slice(11, 16) : '',
+    })).sort((a, b) => a.time - b.time);
+
+    // ストックに保存
+    const s = stocks.find(x => x.key === key);
+    if (s) s.data = candles;
+
+    currentStock = s;
+    renderChips();
+    renderChart(s);
+    setStatus('ok', `${code} (${date})  ${candles.length}件取得完了`);
+
+  } catch (e) {
+    setStatus('error', `取得失敗: ${e.message}`);
+  }
+}
+
+// ── チャート描画 ──
+function renderChart(s) {
+  const candles = s.data;
+  const chartEl = document.getElementById('chart');
+  chartEl.innerHTML = '';
+  chartInstance = null;
+  candleSeries = null;
+
+  // チャート生成
+  chartInstance = LightweightCharts.createChart(chartEl, {
+    layout: {
+      background: { type: 'solid', color: '#0a0c10' },
+      textColor: '#5a6070',
+    },
+    grid: {
+      vertLines: { color: '#181c24' },
+      horzLines: { color: '#181c24' },
+    },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#222730' },
+    timeScale: {
+      borderColor: '#222730',
+      timeVisible: true,
+      secondsVisible: false,
+      tickMarkFormatter: (t) => {
+        const d = new Date(t * 1000);
+        return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      },
+    },
+    width: chartEl.clientWidth,
+    height: chartEl.clientHeight || 400,
+  });
+
+  candleSeries = chartInstance.addCandlestickSeries({
+    upColor: '#00d4aa',
+    downColor: '#ff4560',
+    borderUpColor: '#00d4aa',
+    borderDownColor: '#ff4560',
+    wickUpColor: '#00d4aa',
+    wickDownColor: '#ff4560',
+  });
+
+  candleSeries.setData(candles);
+  chartInstance.timeScale().fitContent();
+
+  // クロスヘア → OHLCV更新
+  chartInstance.subscribeCrosshairMove(param => {
+    if (!param.seriesData || !candleSeries) return;
+    const bar = param.seriesData.get(candleSeries);
+    if (bar) updateOHLC(bar);
+  });
+
+  // リサイズ
+  window.addEventListener('resize', () => {
+    if (chartInstance) {
+      chartInstance.applyOptions({
+        width: chartEl.clientWidth,
+        height: chartEl.clientHeight || 400,
+      });
+    }
+  });
+
+  // ヘッダー更新
+  updateChartHeader(s, candles);
+  updateStats(candles);
+  updateCandleTable(candles);
+}
+
+// ── チャートヘッダー更新 ──
+function updateChartHeader(s, candles) {
+  const last = candles[candles.length - 1];
+  const first = candles[0];
+  const chg = last.close - first.open;
+  const chgPct = (chg / first.open * 100).toFixed(2);
+  const isUp = chg >= 0;
+
+  document.getElementById('chartHeader').innerHTML = `
+    <span class="ticker-label">${s.code}</span>
+    <span class="price-display" style="color:${isUp ? 'var(--up)' : 'var(--down)'}">${last.close.toLocaleString()}</span>
+    <span style="font-family:var(--mono); font-size:12px; color:${isUp ? 'var(--up)' : 'var(--down)'}">
+      ${isUp ? '▲' : '▼'} ${Math.abs(chg).toFixed(0)} (${isUp ? '+' : ''}${chgPct}%)
+    </span>
+    <span style="font-family:var(--mono); font-size:11px; color:var(--muted)">受渡日: ${s.date}</span>
+    <div class="ohlc-display" id="ohlcDisplay">
+      <span class="o">O <b>${first.open.toLocaleString()}</b></span>
+      <span class="h">H <b>${Math.max(...candles.map(c=>c.high)).toLocaleString()}</b></span>
+      <span class="l">L <b>${Math.min(...candles.map(c=>c.low)).toLocaleString()}</b></span>
+      <span class="c">C <b>${last.close.toLocaleString()}</b></span>
+    </div>
+  `;
+}
+
+function updateOHLC(bar) {
+  const el = document.getElementById('ohlcDisplay');
+  if (!el) return;
+  el.innerHTML = `
+    <span class="o">O <b>${bar.open.toLocaleString()}</b></span>
+    <span class="h">H <b>${bar.high.toLocaleString()}</b></span>
+    <span class="l">L <b>${bar.low.toLocaleString()}</b></span>
+    <span class="c">C <b>${bar.close.toLocaleString()}</b></span>
+    <span class="v">Vol <b>${(bar.volume||0).toLocaleString()}</b></span>
+  `;
+}
+
+// ── 統計パネル ──
+function updateStats(candles) {
+  const opens = candles.map(c => c.open);
+  const closes = candles.map(c => c.close);
+  const highs = candles.map(c => c.high);
+  const lows = candles.map(c => c.low);
+  const vols = candles.map(c => c.volume || 0);
+
+  const firstOpen = opens[0];
+  const lastClose = closes[closes.length - 1];
+  const dayHigh = Math.max(...highs);
+  const dayLow = Math.min(...lows);
+  const totalVol = vols.reduce((a, b) => a + b, 0);
+
+  const upCount = candles.filter(c => c.close >= c.open).length;
+  const winRate = (upCount / candles.length * 100).toFixed(0);
+
+  // 最大ドローダウン
+  let peak = firstOpen, maxDD = 0;
+  closes.forEach(c => {
+    if (c > peak) peak = c;
+    const dd = (peak - c) / peak * 100;
+    if (dd > maxDD) maxDD = dd;
+  });
+
+  const chg = lastClose - firstOpen;
+  const chgPct = (chg / firstOpen * 100).toFixed(2);
+  const isUp = chg >= 0;
+
+  document.getElementById('statsPanel').innerHTML = `
+    <div class="stat-row"><span class="stat-label">始値(9:00)</span><span class="stat-value">${firstOpen.toLocaleString()}</span></div>
+    <div class="stat-row"><span class="stat-label">終値(11:30)</span><span class="stat-value ${isUp ? 'up' : 'down'}">${lastClose.toLocaleString()}</span></div>
+    <div class="stat-row"><span class="stat-label">午前変動</span><span class="stat-value ${isUp ? 'up' : 'down'}">${isUp ? '+' : ''}${chgPct}%</span></div>
+    <div class="stat-row"><span class="stat-label">高値</span><span class="stat-value up">${dayHigh.toLocaleString()}</span></div>
+    <div class="stat-row"><span class="stat-label">安値</span><span class="stat-value down">${dayLow.toLocaleString()}</span></div>
+    <div class="stat-row"><span class="stat-label">値幅</span><span class="stat-value">${(dayHigh - dayLow).toLocaleString()}</span></div>
+    <div class="stat-row"><span class="stat-label">上昇足数</span><span class="stat-value">${upCount} / ${candles.length}</span></div>
+    <div class="stat-row"><span class="stat-label">上昇率</span><span class="stat-value ${winRate >= 50 ? 'up' : 'down'}">${winRate}%</span></div>
+    <div class="stat-row"><span class="stat-label">最大DD</span><span class="stat-value down">-${maxDD.toFixed(2)}%</span></div>
+    <div class="stat-row"><span class="stat-label">合計出来高</span><span class="stat-value">${totalVol.toLocaleString()}</span></div>
+    <div class="stat-row"><span class="stat-label">本数</span><span class="stat-value">${candles.length} 本</span></div>
+  `;
+}
+
+// ── ローソク足テーブル ──
+function updateCandleTable(candles) {
+  const el = document.getElementById('candleTable');
+  el.innerHTML = candles.map(c => {
+    const isUp = c.close >= c.open;
+    const chgPct = ((c.close - c.open) / c.open * 100).toFixed(1);
+    return `
+      <div class="candle-row ${isUp ? 'up-row' : 'down-row'}">
+        <span>${c.rawTime}</span>
+        <span style="color:${isUp ? 'var(--up)' : 'var(--down)'}; font-weight:600">${c.close.toLocaleString()}</span>
+        <span style="color:${isUp ? 'var(--up)' : 'var(--down)'}">${isUp ? '+' : ''}${chgPct}%</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── ステータス ──
+function setStatus(type, msg) {
+  document.getElementById('statusText').textContent = msg;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + type;
+}
+</script>
+</body>
+</html>
