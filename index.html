@@ -173,9 +173,9 @@ async function fetchStock(code, date, key) {
   setSt('loading', `${code} (${date}) データ取得中...`);
   try {
     // V2 API: x-api-key ヘッダーで認証
-    // 分足エンドポイント: /v2/equities/bars/intraday
+    // 分足エンドポイント: /v2/equities/bars/minute
     const dateFormatted = date.replace(/-/g, ''); // YYYYMMDD形式
-    const url = `https://api.jquants.com/v2/equities/bars/intraday?code=${code}&date=${dateFormatted}&interval=1`;
+    const url = `https://api.jquants.com/v2/equities/bars/minute?code=${code}&date=${dateFormatted}`;
     
     const r = await fetch(url, {
       headers: { 'x-api-key': apiKey }
@@ -187,8 +187,8 @@ async function fetchStock(code, date, key) {
     }
 
     const json = await r.json();
-    // V2のレスポンス形式に対応
-    let rows = json.bars || json.prices_am || json.data || [];
+    // V2のレスポンス形式: { bars_minute: [...] }
+    let rows = json.bars_minute || json.bars || json.data || [];
 
     if (!rows.length) {
       setSt('error', `${code}: データなし（分足アドオン未契約、または受渡日が取引日でない可能性）`);
@@ -207,14 +207,15 @@ async function fetchStock(code, date, key) {
     }
 
     const candles = rows.map(r => {
-      const dt = r.DateTime || r.datetime || r.time || '';
+      // V2はカラム名が短縮: DateTime, O, H, L, C, Vo など
+      const dt = r.DateTime || r.datetime || '';
       return {
         time: Math.floor(new Date(dt.replace(' ','T')+'+09:00').getTime()/1000),
-        open:  r.Open  || r.open  || r.O || 0,
-        high:  r.High  || r.high  || r.H || 0,
-        low:   r.Low   || r.low   || r.L || 0,
-        close: r.Close || r.close || r.C || 0,
-        volume: r.Volume || r.volume || r.Vo || 0,
+        open:  r.O || r.Open  || r.open  || 0,
+        high:  r.H || r.High  || r.high  || 0,
+        low:   r.L || r.Low   || r.low   || 0,
+        close: r.C || r.Close || r.close || 0,
+        volume: r.Vo || r.Volume || r.volume || 0,
         rawTime: dt.slice(11,16)
       };
     }).sort((a,b)=>a.time-b.time);
