@@ -13,15 +13,9 @@ def fetch_1min(code, date):
     headers = {"x-api-key": API_KEY}
     params = {"code": code, "date": date_fmt}
 
-    print(f"APIキー先頭4文字: {API_KEY[:4]}")  # デバッグ用
-    print(f"URL: {url}")
-    print(f"params: {params}")
-
     all_rows = []
     while True:
         r = requests.get(url, headers=headers, params=params)
-        print(f"HTTPステータス: {r.status_code}")
-        print(f"レスポンス: {r.text[:200]}")  # 最初の200文字
         r.raise_for_status()
         j = r.json()
         rows = j.get("data", []) or j.get("bars_minute", [])
@@ -36,8 +30,11 @@ def fetch_1min(code, date):
         return
 
     df = pd.DataFrame(all_rows)
-    df["DateTime"] = pd.to_datetime(df["DateTime"])
 
+    # V2は Date と Time が別カラム → 結合してDateTime作成
+    df["DateTime"] = pd.to_datetime(df["Date"] + " " + df["Time"])
+
+    # 9:00〜15:30フィルタ
     base = df["DateTime"].dt.normalize()
     start = base + pd.Timedelta(hours=9)
     end   = base + pd.Timedelta(hours=15, minutes=30)
