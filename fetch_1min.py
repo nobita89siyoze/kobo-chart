@@ -49,7 +49,6 @@ def main():
     with open("offering_stocks.json", encoding="utf-8") as f:
         stocks = json.load(f)
 
-    # 年でフィルタ
     if year_filter != "all":
         stocks = [s for s in stocks if s["delivery_date"].startswith(year_filter)]
 
