@@ -3,10 +3,10 @@ name: Fetch 1min OHLCV
 on:
   workflow_dispatch:
     inputs:
-      targets:
-        description: '銘柄コードと日付 (例: 6278,2026-04-22;6855,2026-03-17)'
+      year:
+        description: '取得する年（2022 / 2023 / 2024 / 2025 / all）'
         required: true
-        default: '6278,2026-04-22;6855,2026-03-17;5262,2026-03-13;9887,2026-03-04'
+        default: '2025'
 
 jobs:
   fetch:
@@ -24,11 +24,11 @@ jobs:
       - name: Fetch 1min data
         env:
           JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
-        run: python fetch_1min.py "${{ github.event.inputs.targets }}"
+        run: python fetch_1min.py "${{ github.event.inputs.year }}"
 
       - name: Upload CSV
         uses: actions/upload-artifact@v4
         with:
-          name: 1min-ohlcv
+          name: 1min-ohlcv-${{ github.event.inputs.year }}
           path: output/*.csv
-          retention-days: 7
+          retention-days: 30
